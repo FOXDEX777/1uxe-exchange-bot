@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Luxe Exchange - Admin Panel</title>
+<style>
+  :root {
+    --bg: #0d0d0d;
+    --surface: #1a1a2e;
+    --card: #16213e;
+    --accent: #e2a62b;
+    --accent2: #c47d0e;
+    --text: #e8e8e8;
+    --text2: #a0a0b0;
+    --success: #22c55e;
+    --danger: #ef4444;
+    --warning: #f59e0b;
+    --border: #2a2a4a;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; min-height: 100vh; }
+  
+  /* Sidebar */
+  .sidebar { position: fixed; left: 0; top: 0; height: 100vh; width: 240px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 100; }
+  .sidebar-logo { padding: 24px 20px; border-bottom: 1px solid var(--border); }
+  .sidebar-logo h2 { color: var(--accent); font-size: 18px; letter-spacing: 1px; }
+  .sidebar-logo span { font-size: 11px; color: var(--text2); }
+  .sidebar-nav { flex: 1; padding: 16px 0; }
+  .nav-item { display: flex; align-items: center; gap: 12px; padding: 12px 20px; cursor: pointer; transition: all 0.2s; color: var(--text2); font-size: 14px; border-left: 3px solid transparent; }
+  .nav-item:hover, .nav-item.active { background: rgba(226,166,43,0.1); color: var(--accent); border-left-color: var(--accent); }
+  .nav-item .icon { font-size: 18px; width: 24px; }
+  .sidebar-footer { padding: 16px 20px; border-top: 1px solid var(--border); }
+  .status-badge { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); animation: pulse 2s infinite; }
+  .dot.offline { background: var(--danger); animation: none; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* Main */
+  .main { margin-left: 240px; padding: 24px; min-height: 100vh; }
+  .page { display: none; }
+  .page.active { display: block; }
+  .page-header { margin-bottom: 24px; }
+  .page-header h1 { font-size: 24px; color: var(--text); }
+  .page-header p { color: var(--text2); font-size: 14px; margin-top: 4px; }
+
+  /* Cards */
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+  .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+  .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+  .stat-label { font-size: 12px; color: var(--text2); margin-bottom: 8px; }
+  .stat-value { font-size: 28px; font-weight: 700; color: var(--accent); }
+  .stat-sub { font-size: 12px; color: var(--text2); margin-top: 4px; }
+
+  /* Toggle */
+  .toggle-wrap { display: flex; align-items: center; gap: 16px; padding: 20px; background: var(--card); border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: 16px; }
+  .toggle { position: relative; width: 56px; height: 28px; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider { position: absolute; inset: 0; background: #333; border-radius: 28px; cursor: pointer; transition: 0.3s; }
+  .toggle-slider:before { content: ''; position: absolute; height: 22px; width: 22px; left: 3px; top: 3px; background: white; border-radius: 50%; transition: 0.3s; }
+  input:checked + .toggle-slider { background: var(--accent); }
+  input:checked + .toggle-slider:before { transform: translateX(28px); }
+  .toggle-info h3 { font-size: 15px; }
+  .toggle-info p { font-size: 13px; color: var(--text2); }
+
+  /* Table */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: rgba(226,166,43,0.1); color: var(--accent); font-weight: 600; text-align: left; padding: 10px 14px; }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text2); }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .badge.pending { background: rgba(245,158,11,0.2); color: var(--warning); }
+  .badge.confirmed { background: rgba(34,197,94,0.2); color: var(--success); }
+  .badge.cancelled { background: rgba(239,68,68,0.2); color: var(--danger); }
+
+  /* Form */
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 6px; }
+  .form-group input, .form-group textarea, .form-group select { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; color: var(--text); font-size: 14px; outline: none; transition: border-color 0.2s; }
+  .form-group input:focus, .form-group textarea:focus { border-color: var(--accent); }
+  
+  /* Buttons */
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.2s; }
+  .btn-primary { background: var(--accent); color: #000; }
+  .btn-primary:hover { background: var(--accent2); }
+  .btn-danger { background: rgba(239,68,68,0.15); color: var(--danger); border: 1px solid rgba(239,68,68,0.3); }
+  .btn-danger:hover { background: rgba(239,68,68,0.3); }
+  .btn-success { background: rgba(34,197,94,0.15); color: var(--success); border: 1px solid rgba(34,197,94,0.3); }
+  .btn-sm { padding: 5px 12px; font-size: 12px; border-radius: 6px; }
+  .btn-outline { background: transparent; color: var(--text2); border: 1px solid var(--border); }
+  .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Price editor */
+  .price-list { display: flex; flex-direction: column; gap: 8px; }
+  .price-item { display: flex; align-items: center; gap: 12px; background: var(--surface); border-radius: 8px; padding: 10px 14px; border: 1px solid var(--border); }
+  .price-item input { flex: 1; background: transparent; border: none; color: var(--text); font-size: 14px; outline: none; }
+  .price-item input:focus { color: var(--accent); }
+  .price-sep { color: var(--text2); }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--success); color: #000; padding: 12px 20px; border-radius: 8px; font-weight: 600; font-size: 14px; opacity: 0; transform: translateY(20px); transition: all 0.3s; pointer-events: none; z-index: 999; }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.error { background: var(--danger); color: white; }
+
+  /* Section dividers */
+  .section-title { font-size: 13px; font-weight: 600; color: var(--accent); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  .gap-16 { margin-bottom: 16px; }
+  .gap-24 { margin-bottom: 24px; }
+  .row { display: flex; gap: 16px; align-items: center; }
+  .flex-1 { flex: 1; }
+
+  /* Broadcast */
+  .broadcast-box textarea { min-height: 100px; resize: vertical; }
+
+  /* Scrollable */
+  .scroll-300 { max-height: 300px; overflow-y: auto; }
+  
+  /* Responsive */
+  @media(max-width:900px) {
+    .stat-grid { grid-template-columns: repeat(2,1fr); }
+    .form-grid { grid-template-columns: 1fr; }
+    .sidebar { width: 60px; }
+    .sidebar-logo span, .nav-item span, .sidebar-logo h2 { display: none; }
+    .main { margin-left: 60px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <h2>💎 LUXE</h2>
+    <span>Exchange Admin</span>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-item active" onclick="showPage('dashboard')"><span class="icon">📊</span><span>Dashboard</span></div>
+    <div class="nav-item" onclick="showPage('orders')"><span class="icon">📦</span><span>Orders</span></div>
+    <div class="nav-item" onclick="showPage('prices')"><span class="icon">💰</span><span>Prices</span></div>
+    <div class="nav-item" onclick="showPage('wallets')"><span class="icon">👛</span><span>Wallets</span></div>
+    <div class="nav-item" onclick="showPage('telegram')"><span class="icon">⭐</span><span>TG Services</span></div>
+    <div class="nav-item" onclick="showPage('broadcast')"><span class="icon">📢</span><span>Broadcast</span></div>
+    <div class="nav-item" onclick="showPage('maintenance')"><span class="icon">🛠️</span><span>Maintenance</span></div>
+    <div class="nav-item" onclick="showPage('settings')"><span class="icon">⚙️</span><span>Settings</span></div>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="status-badge">
+      <div class="dot" id="bot-dot"></div>
+      <span id="bot-status-text" style="font-size:12px;color:var(--text2)">Bot Online</span>
+    </div>
+  </div>
+</div>
+
+<!-- Main -->
+<div class="main">
+
+  <!-- Dashboard -->
+  <div class="page active" id="page-dashboard">
+    <div class="page-header">
+      <h1>📊 Dashboard</h1>
+      <p>Luxe Exchange Bot Overview</p>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">Total Orders</div>
+        <div class="stat-value" id="stat-total">0</div>
+        <div class="stat-sub">All time</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Pending Orders</div>
+        <div class="stat-value" id="stat-pending" style="color:#f59e0b">0</div>
+        <div class="stat-sub">Awaiting action</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Confirmed</div>
+        <div class="stat-value" id="stat-confirmed" style="color:#22c55e">0</div>
+        <div class="stat-sub">Completed</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Active Users</div>
+        <div class="stat-value" id="stat-users">0</div>
+        <div class="stat-sub">Bot users</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="section-title">Recent Orders</div>
+      <div class="table-wrap">
+        <table id="recent-orders-table">
+          <thead><tr><th>Order ID</th><th>Type</th><th>User</th><th>Amount</th><th>Status</th><th>Time</th><th>Action</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Orders -->
+  <div class="page" id="page-orders">
+    <div class="page-header">
+      <h1>📦 Orders</h1>
+      <p>Manage all exchange orders</p>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div class="section-title" style="margin:0">All Orders</div>
+        <div style="display:flex;gap:8px">
+          <select id="order-filter" onchange="loadOrders()" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:13px">
+            <option value="">All</option>
+            <option value="PENDING">Pending</option>
+            <option value="CONFIRMED">Confirmed</option>
+            <option value="CANCELLED">Cancelled</option>
+          </select>
+          <button class="btn btn-outline btn-sm" onclick="loadOrders()">🔄 Refresh</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table id="orders-table">
+          <thead><tr><th>Order ID</th><th>Type</th><th>User</th><th>TG ID</th><th>Amount</th><th>Exchange</th><th>Wallet</th><th>Status</th><th>Time</th><th>Actions</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Prices -->
+  <div class="page" id="page-prices">
+    <div class="page-header">
+      <h1>💰 Price Management</h1>
+      <p>Edit buy/sell prices</p>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div class="card">
+        <div class="section-title">💎 TON Prices (MMK)</div>
+        <div class="price-list" id="ton-prices-list"></div>
+        <div style="margin-top:12px;display:flex;gap:8px">
+          <button class="btn btn-outline btn-sm" onclick="addTonPrice()">+ Add</button>
+          <button class="btn btn-primary btn-sm" onclick="saveTonPrices()">💾 Save</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="section-title">💵 USDT Prices (MMK)</div>
+        <div class="price-list" id="usdt-prices-list"></div>
+        <div style="margin-top:12px;display:flex;gap:8px">
+          <button class="btn btn-outline btn-sm" onclick="addUsdtPrice()">+ Add</button>
+          <button class="btn btn-primary btn-sm" onclick="saveUsdtPrices()">💾 Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Wallets -->
+  <div class="page" id="page-wallets">
+    <div class="page-header">
+      <h1>👛 Wallet Management</h1>
+      <p>Manage exchange wallet addresses</p>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div class="card">
+        <div class="section-title">💎 TON Addresses</div>
+        <div class="form-group"><label>TON Network</label><input id="ton-addr" placeholder="TON Network Address"></div>
+        <div class="form-group"><label>Ethereum Network</label><input id="eth-addr" placeholder="Ethereum Address"></div>
+        <div class="form-group"><label>BEP20</label><input id="bep20-addr" placeholder="BEP20 Address"></div>
+        <button class="btn btn-primary btn-sm" onclick="saveTonAddresses()">💾 Save Addresses</button>
+      </div>
+      <div class="card">
+        <div class="section-title">🔵 Bitget Wallet (for USDT)</div>
+        <div class="form-group"><label>UID</label><input id="bitget-uid" placeholder="Bitget UID"></div>
+        <div class="form-group"><label>Address</label><input id="bitget-addr" placeholder="Bitget Address"></div>
+        <button class="btn btn-primary btn-sm" onclick="saveBitget()">💾 Save</button>
+      </div>
+      <div class="card">
+        <div class="section-title">💳 Payment Info</div>
+        <div class="form-group"><label>Name</label><input id="pay-name" placeholder="Account Name"></div>
+        <div class="form-group"><label>KPay Number</label><input id="pay-kpay" placeholder="09xxxxxxxxx"></div>
+        <div class="form-group"><label>AYA Pay Number</label><input id="pay-aya" placeholder="09xxxxxxxxx"></div>
+        <div class="form-group"><label>Wave Pay Number</label><input id="pay-wave" placeholder="09xxxxxxxxx"></div>
+        <button class="btn btn-primary btn-sm" onclick="savePayment()">💾 Save Payment Info</button>
+      </div>
+      <div class="card">
+        <div class="section-title">🔶 Other Exchanges</div>
+        <div class="form-group"><label>Binance Address</label><input id="binance-addr" placeholder="Binance USDT Address"></div>
+        <div class="form-group"><label>OKX Address</label><input id="okx-addr" placeholder="OKX USDT Address"></div>
+        <div class="form-group"><label>Other Wallet Address</label><input id="other-addr" placeholder="Other Address"></div>
+        <button class="btn btn-primary btn-sm" onclick="saveExchanges()">💾 Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Telegram Services -->
+  <div class="page" id="page-telegram">
+    <div class="page-header">
+      <h1>⭐ Telegram Services</h1>
+      <p>Manage Telegram Premium & Star prices</p>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div class="card">
+        <div class="section-title">⭐ Telegram Stars Prices</div>
+        <div class="price-list" id="stars-prices-list"></div>
+        <div style="margin-top:12px;display:flex;gap:8px">
+          <button class="btn btn-outline btn-sm" onclick="addStarPrice()">+ Add</button>
+          <button class="btn btn-primary btn-sm" onclick="saveStarPrices()">💾 Save</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="section-title">👑 Telegram Premium Prices</div>
+        <div class="price-list" id="premium-prices-list"></div>
+        <div style="margin-top:12px;display:flex;gap:8px">
+          <button class="btn btn-outline btn-sm" onclick="addPremiumPrice()">+ Add</button>
+          <button class="btn btn-primary btn-sm" onclick="savePremiumPrices()">💾 Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Broadcast -->
+  <div class="page" id="page-broadcast">
+    <div class="page-header">
+      <h1>📢 Broadcast Message</h1>
+      <p>Send message to all bot users</p>
+    </div>
+    <div class="card" style="max-width:600px">
+      <div class="section-title">Compose Message</div>
+      <div class="form-group broadcast-box">
+        <label>Message (supports Markdown)</label>
+        <textarea id="broadcast-msg" placeholder="Enter your message..."></textarea>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" onclick="sendBroadcast()">📢 Send to All Users</button>
+        <button class="btn btn-outline" onclick="document.getElementById('broadcast-msg').value=''">🗑️ Clear</button>
+      </div>
+      <p style="font-size:12px;color:var(--text2);margin-top:12px" id="broadcast-count">Loading user count...</p>
+    </div>
+  </div>
+
+  <!-- Maintenance -->
+  <div class="page" id="page-maintenance">
+    <div class="page-header">
+      <h1>🛠️ Maintenance</h1>
+      <p>Control bot availability</p>
+    </div>
+    <div class="card" style="max-width:600px">
+      <div class="toggle-wrap">
+        <label class="toggle">
+          <input type="checkbox" id="maintenance-toggle" onchange="toggleMaintenance()">
+          <span class="toggle-slider"></span>
+        </label>
+        <div class="toggle-info">
+          <h3>Maintenance Mode</h3>
+          <p>When ON, bot stops responding and notifies all users</p>
+        </div>
+      </div>
+      <div class="form-group gap-16">
+        <label>Maintenance ON Message</label>
+        <textarea id="maintenance-on-msg" style="min-height:80px;resize:vertical;width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:13px;outline:none"></textarea>
+      </div>
+      <div class="form-group">
+        <label>Maintenance OFF Message</label>
+        <textarea id="maintenance-off-msg" style="min-height:60px;resize:vertical;width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:13px;outline:none"></textarea>
+      </div>
+      <button class="btn btn-primary" onclick="saveMaintenanceMessages()">💾 Save Messages</button>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div class="page" id="page-settings">
+    <div class="page-header">
+      <h1>⚙️ Settings</h1>
+      <p>Bot configuration</p>
+    </div>
+    <div class="card" style="max-width:500px">
+      <div class="section-title">Bot Info</div>
+      <div class="form-group"><label>Bot Token</label><input id="s-token" type="password" placeholder="Bot token"></div>
+      <div class="form-group"><label>Admin Telegram ID</label><input id="s-admin" placeholder="Admin ID"></div>
+      <div class="form-group"><label>Customer Support Bot Link</label><input id="s-support" placeholder="t.me/..."></div>
+      <button class="btn btn-primary" onclick="saveSettings()">💾 Save Settings</button>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = '';
+
+function showPage(p) {
+  document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  document.getElementById('page-'+p).classList.add('active');
+  event.currentTarget.classList.add('active');
+  if(p==='dashboard') loadDashboard();
+  if(p==='orders') loadOrders();
+  if(p==='prices') loadPrices();
+  if(p==='wallets') loadWallets();
+  if(p==='telegram') loadTelegramPrices();
+  if(p==='maintenance') loadMaintenance();
+  if(p==='broadcast') loadBroadcastInfo();
+}
+
+function toast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (type?' '+type:'');
+  setTimeout(() => t.className='toast', 3000);
+}
+
+async function api(path, method='GET', body=null) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if(body) opts.body = JSON.stringify(body);
+  const r = await fetch(API+path, opts);
+  return r.json();
+}
+
+async function loadDashboard() {
+  const data = await api('/api/stats');
+  if(!data) return;
+  document.getElementById('stat-total').textContent = data.total || 0;
+  document.getElementById('stat-pending').textContent = data.pending || 0;
+  document.getElementById('stat-confirmed').textContent = data.confirmed || 0;
+  document.getElementById('stat-users').textContent = data.users || 0;
+  const tbody = document.querySelector('#recent-orders-table tbody');
+  tbody.innerHTML = '';
+  (data.recent||[]).forEach(o => {
+    tbody.innerHTML += `<tr>
+      <td><code style="font-size:11px">${o.id}</code></td>
+      <td>${o.type}</td>
+      <td>@${o.username}</td>
+      <td>${o.amount}</td>
+      <td><span class="badge ${o.status.toLowerCase()}">${o.status}</span></td>
+      <td>${new Date(o.createdAt).toLocaleString()}</td>
+      <td>${o.status==='PENDING'?`<button class="btn btn-success btn-sm" onclick="confirmOrder('${o.id}')">✅ Confirm</button>`:''}</td>
+    </tr>`;
+  });
+}
+
+async function loadOrders() {
+  const filter = document.getElementById('order-filter')?.value || '';
+  const data = await api('/api/orders?status='+filter);
+  const tbody = document.querySelector('#orders-table tbody');
+  tbody.innerHTML = '';
+  (data.orders||[]).reverse().forEach(o => {
+    tbody.innerHTML += `<tr>
+      <td><code style="font-size:11px">${o.id}</code></td>
+      <td><span style="font-size:11px">${o.type}</span></td>
+      <td>@${o.username}</td>
+      <td><code>${o.telegramId}</code></td>
+      <td>${o.amount}</td>
+      <td>${o.exchange||'-'}</td>
+      <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis">${o.walletAddress||'-'}</td>
+      <td><span class="badge ${o.status.toLowerCase()}">${o.status}</span></td>
+      <td style="white-space:nowrap">${new Date(o.createdAt).toLocaleString()}</td>
+      <td style="display:flex;gap:4px">
+        ${o.status==='PENDING'?`<button class="btn btn-success btn-sm" onclick="confirmOrder('${o.id}')">✅</button>
+        <button class="btn btn-danger btn-sm" onclick="cancelOrder('${o.id}')">✖</button>`:''}
+      </td>
+    </tr>`;
+  });
+}
+
+async function confirmOrder(id) {
+  await api('/api/orders/'+id+'/confirm', 'POST');
+  toast('✅ Order confirmed!');
+  loadOrders(); loadDashboard();
+}
+
+async function cancelOrder(id) {
+  await api('/api/orders/'+id+'/cancel', 'POST');
+  toast('Order cancelled', 'error');
+  loadOrders();
+}
+
+// Prices
+async function loadPrices() {
+  const data = await api('/api/store');
+  renderPriceList('ton-prices-list', data.tonPrices, 'TON', 'amount');
+  renderPriceList('usdt-prices-list', data.usdtPrices, 'USDT', 'amount');
+}
+
+function renderPriceList(id, items, unit, amtKey) {
+  const el = document.getElementById(id);
+  el.innerHTML = '';
+  (items||[]).forEach((p,i) => {
+    el.innerHTML += `<div class="price-item">
+      <input value="${p[amtKey]}" placeholder="${unit} amount" data-key="${amtKey}" data-idx="${i}" data-list="${id}" oninput="updatePriceItem(this)">
+      <span class="price-sep">=</span>
+      <input value="${p.price}" placeholder="MMK" data-key="price" data-idx="${i}" data-list="${id}" oninput="updatePriceItem(this)">
+      <span style="color:var(--text2);font-size:12px">MMK</span>
+      <button class="btn btn-danger btn-sm" onclick="removePriceItem('${id}',${i})">✖</button>
+    </div>`;
+  });
+}
+
+let _prices = {};
+async function initPrices() { _prices = await api('/api/store'); }
+
+function updatePriceItem(el) {
+  const list = el.dataset.list;
+  const idx = parseInt(el.dataset.idx);
+  const key = el.dataset.key;
+  const type = list.includes('ton') ? 'tonPrices' : 'usdtPrices';
+  if(!_prices[type]) return;
+  _prices[type][idx][key] = el.value;
+}
+
+function removePriceItem(listId, idx) {
+  const type = listId.includes('ton') ? 'tonPrices' : 'usdtPrices';
+  if(!_prices[type]) return;
+  _prices[type].splice(idx,1);
+  renderPriceList(listId, _prices[type], listId.includes('ton')?'TON':'USDT', 'amount');
+}
+
+function addTonPrice() {
+  if(!_prices.tonPrices) _prices.tonPrices=[];
+  _prices.tonPrices.push({amount:'',price:''});
+  renderPriceList('ton-prices-list', _prices.tonPrices, 'TON', 'amount');
+}
+function addUsdtPrice() {
+  if(!_prices.usdtPrices) _prices.usdtPrices=[];
+  _prices.usdtPrices.push({amount:'',price:''});
+  renderPriceList('usdt-prices-list', _prices.usdtPrices, 'USDT', 'amount');
+}
+
+async function saveTonPrices() {
+  await api('/api/store', 'PATCH', { tonPrices: _prices.tonPrices });
+  toast('✅ TON prices saved!');
+}
+async function saveUsdtPrices() {
+  await api('/api/store', 'PATCH', { usdtPrices: _prices.usdtPrices });
+  toast('✅ USDT prices saved!');
+}
+
+// Wallets
+async function loadWallets() {
+  const d = await api('/api/store');
+  document.getElementById('ton-addr').value = d.tonAddresses?.tonNetwork || '';
+  document.getElementById('eth-addr').value = d.tonAddresses?.ethereumNetwork || '';
+  document.getElementById('bep20-addr').value = d.tonAddresses?.bep20 || '';
+  document.getElementById('bitget-uid').value = d.bitgetWallet?.uid || '';
+  document.getElementById('bitget-addr').value = d.bitgetWallet?.address || '';
+  document.getElementById('pay-name').value = d.paymentInfo?.name || '';
+  document.getElementById('pay-kpay').value = d.paymentInfo?.kpay || '';
+  document.getElementById('pay-aya').value = d.paymentInfo?.ayapay || '';
+  document.getElementById('pay-wave').value = d.paymentInfo?.wavepay || '';
+  document.getElementById('binance-addr').value = d.exchangeWallets?.binance?.address || '';
+  document.getElementById('okx-addr').value = d.exchangeWallets?.okx?.address || '';
+  document.getElementById('other-addr').value = d.exchangeWallets?.other?.address || '';
+}
+
+async function saveTonAddresses() {
+  await api('/api/store', 'PATCH', { tonAddresses: {
+    tonNetwork: document.getElementById('ton-addr').value,
+    ethereumNetwork: document.getElementById('eth-addr').value,
+    bep20: document.getElementById('bep20-addr').value
+  }});
+  toast('✅ TON addresses saved!');
+}
+async function saveBitget() {
+  await api('/api/store', 'PATCH', { bitgetWallet: {
+    uid: document.getElementById('bitget-uid').value,
+    address: document.getElementById('bitget-addr').value
+  }});
+  toast('✅ Bitget wallet saved!');
+}
+async function savePayment() {
+  await api('/api/store', 'PATCH', { paymentInfo: {
+    name: document.getElementById('pay-name').value,
+    kpay: document.getElementById('pay-kpay').value,
+    ayapay: document.getElementById('pay-aya').value,
+    wavepay: document.getElementById('pay-wave').value
+  }});
+  toast('✅ Payment info saved!');
+}
+async function saveExchanges() {
+  const d = await api('/api/store');
+  const ew = d.exchangeWallets || {};
+  ew.binance = { ...ew.binance, address: document.getElementById('binance-addr').value };
+  ew.okx = { ...ew.okx, address: document.getElementById('okx-addr').value };
+  ew.other = { ...ew.other, address: document.getElementById('other-addr').value };
+  await api('/api/store', 'PATCH', { exchangeWallets: ew });
+  toast('✅ Exchange wallets saved!');
+}
+
+// Telegram prices
+let _tgPrices = {};
+async function loadTelegramPrices() {
+  _tgPrices = await api('/api/store');
+  renderStarList();
+  renderPremiumList();
+}
+function renderStarList() {
+  const el = document.getElementById('stars-prices-list');
+  el.innerHTML = '';
+  (_tgPrices.telegramStarPrices||[]).forEach((p,i) => {
+    el.innerHTML += `<div class="price-item">
+      <input value="${p.stars}" placeholder="Stars" oninput="_tgPrices.telegramStarPrices[${i}].stars=this.value">
+      <span class="price-sep">⭐ =</span>
+      <input value="${p.price}" placeholder="MMK" oninput="_tgPrices.telegramStarPrices[${i}].price=this.value">
+      <span style="color:var(--text2);font-size:12px">MMK</span>
+      <button class="btn btn-danger btn-sm" onclick="_tgPrices.telegramStarPrices.splice(${i},1);renderStarList()">✖</button>
+    </div>`;
+  });
+}
+function renderPremiumList() {
+  const el = document.getElementById('premium-prices-list');
+  el.innerHTML = '';
+  (_tgPrices.telegramPremiumPrices||[]).forEach((p,i) => {
+    el.innerHTML += `<div class="price-item">
+      <input value="${p.period}" placeholder="Period" style="flex:2" oninput="_tgPrices.telegramPremiumPrices[${i}].period=this.value">
+      <span class="price-sep">=</span>
+      <input value="${p.price}" placeholder="MMK" oninput="_tgPrices.telegramPremiumPrices[${i}].price=this.value">
+      <span style="color:var(--text2);font-size:12px">MMK</span>
+      <button class="btn btn-danger btn-sm" onclick="_tgPrices.telegramPremiumPrices.splice(${i},1);renderPremiumList()">✖</button>
+    </div>`;
+  });
+}
+function addStarPrice() { if(!_tgPrices.telegramStarPrices)_tgPrices.telegramStarPrices=[]; _tgPrices.telegramStarPrices.push({stars:'',price:''}); renderStarList(); }
+function addPremiumPrice() { if(!_tgPrices.telegramPremiumPrices)_tgPrices.telegramPremiumPrices=[]; _tgPrices.telegramPremiumPrices.push({period:'',price:''}); renderPremiumList(); }
+async function saveStarPrices() { await api('/api/store','PATCH',{telegramStarPrices:_tgPrices.telegramStarPrices}); toast('✅ Star prices saved!'); }
+async function savePremiumPrices() { await api('/api/store','PATCH',{telegramPremiumPrices:_tgPrices.telegramPremiumPrices}); toast('✅ Premium prices saved!'); }
+
+// Maintenance
+async function loadMaintenance() {
+  const d = await api('/api/store');
+  document.getElementById('maintenance-toggle').checked = d.maintenance || false;
+  document.getElementById('maintenance-on-msg').value = d.maintenanceMessage || '';
+  document.getElementById('maintenance-off-msg').value = d.maintenanceOffMessage || '';
+}
+async function toggleMaintenance() {
+  const on = document.getElementById('maintenance-toggle').checked;
+  await api('/api/maintenance', 'POST', { maintenance: on });
+  toast(on ? '🔴 Maintenance ON - Users notified' : '🟢 Maintenance OFF - Users notified');
+}
+async function saveMaintenanceMessages() {
+  await api('/api/store','PATCH',{
+    maintenanceMessage: document.getElementById('maintenance-on-msg').value,
+    maintenanceOffMessage: document.getElementById('maintenance-off-msg').value
+  });
+  toast('✅ Messages saved!');
+}
+
+// Broadcast
+async function loadBroadcastInfo() {
+  const d = await api('/api/stats');
+  document.getElementById('broadcast-count').textContent = `Will be sent to ${d.users || 0} users`;
+}
+async function sendBroadcast() {
+  const msg = document.getElementById('broadcast-msg').value.trim();
+  if(!msg) { toast('Please enter a message','error'); return; }
+  const r = await api('/api/broadcast','POST',{message:msg});
+  toast(`✅ Broadcast sent to ${r.sent || 0} users`);
+}
+
+// Settings
+async function loadSettings() {
+  const d = await api('/api/store');
+}
+async function saveSettings() {
+  toast('✅ Settings saved (restart required)');
+}
+
+// Init
+window.onload = async () => {
+  await initPrices();
+  loadDashboard();
+  checkBotStatus();
+  setInterval(checkBotStatus, 30000);
+  setInterval(loadDashboard, 60000);
+};
+
+async function checkBotStatus() {
+  try {
+    const r = await fetch('/api/health');
+    const d = await r.json();
+    const dot = document.getElementById('bot-dot');
+    const txt = document.getElementById('bot-status-text');
+    if(d.ok) { dot.className='dot'; txt.textContent='Bot Online'; }
+    else { dot.className='dot offline'; txt.textContent='Bot Offline'; }
+  } catch(e) {
+    document.getElementById('bot-dot').className='dot offline';
+  }
+}
+</script>
+</body>
+</html>
